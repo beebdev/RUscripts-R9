@@ -9,3 +9,12 @@ ReadUntil/ws4py.log
 ReadUntil/latency_test/
 ReadUntil/example.py
 ReadUntil/ReadUntil.zip
+ReadUntil/RUgOUT
+ReadUntil/__pycache__
+RUscripts
+bin/
+*model
+lib/
+lib64
+pyvenv.cfg
+share/

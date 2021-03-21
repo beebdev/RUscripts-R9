@@ -1,12 +1,12 @@
 import csv
 import numpy as np
 import sys,os,re
-import urllib2
+import urllib.request as urllib2
 import json
 from Bio import SeqIO
 from Bio.Seq import Seq
-from Bio.Alphabet import generic_dna
-from StringIO import StringIO
+# from Bio.Alphabet import generic_dna
+from io import StringIO
 import sklearn.preprocessing
 import multiprocessing
 import ctypes
@@ -22,20 +22,20 @@ def check_files(listoffiles):
     """
     Supplied a list of files, this routine checks to see if they exist. If the files cannot be found, the program exits.
     """
-    print "\n\rChecking Files..."
+    print ("\n\rChecking Files...")
     for file in listoffiles:
         if not os.path.isfile(file):
-            print "\n\r**! One of the files you supplied cannot be found. Please check:\n\r\n\r"+str(file)+"\n\r\n\r**! This program will now exit.\n\r"
+            print ("\n\r**! One of the files you supplied cannot be found. Please check:\n\r\n\r"+str(file)+"\n\r\n\r**! This program will now exit.\n\r")
             sys.exit()
-    print "\n\rAll OK.\n\r"
+    print ("\n\rAll OK.\n\r")
 
 def checkfasta(fasta):
     try:
         for record in SeqIO.parse(fasta, 'fasta'):
-            print record.id
+            print (record.id)
     except:
-        print "Fasta does not appear to be valid.\n\r"
-        print "This program will now exit. Please try again.\n\r"
+        print ("Fasta does not appear to be valid.\n\r")
+        print ("This program will now exit. Please try again.\n\r")
         sys.exit()
 
 def correctposition(value,ranges,sequence):
@@ -93,106 +93,106 @@ def scale(a):
 ###########################################################
 def file_dict_of_folder(path):
 
-	file_list_dict=dict()
-	ref_list_dict=dict()
+    file_list_dict=dict()
+    ref_list_dict=dict()
 
-	print "File Dict Of Folder Called"
-	if os.path.isdir(path):
-		print "caching existing fast5 files in: %s" % (path)
-		for path, dirs, files in os.walk(path) :
-			for f in files:
-				#if (("downloads" in path )):
-				if ("muxscan" not in f and f.endswith(".fast5") ):
-					file_list_dict[os.path.join(path, f)]=os.stat(os.path.join(path, f)).st_mtime
+    print ("File Dict Of Folder Called")
+    if os.path.isdir(path):
+        print ("caching existing fast5 files in: %s" % (path))
+        for path, dirs, files in os.walk(path) :
+            for f in files:
+                #if (("downloads" in path )):
+                if ("muxscan" not in f and f.endswith(".fast5") ):
+                    file_list_dict[os.path.join(path, f)]=os.stat(os.path.join(path, f)).st_mtime
 
-	print "found %d existing fast5 files to process first." % (len(file_list_dict) )
-    	return file_list_dict
-
-
+    print ("found %d existing fast5 files to process first." % (len(file_list_dict) ))
+    return file_list_dict
 
 
-def genome_worker((channel_id, data,readstarttime,args,seqlen,seqids,threedarray)):
+
+
+def genome_worker(channel_id, data,readstarttime,args,seqlen,seqids,threedarray):
     #print "mpworker"
     #current = multiprocessing.current_process()
     #print "Process is",current.name,"running on",channel_id
     if args.verbose is True:
-        print "worker running"
-        print "channel_id:",channel_id
-        print "readstarttime:",readstarttime
+        print ("worker running")
+        print ("channel_id:",channel_id)
+        print ("readstarttime:",readstarttime)
     #readnumber = ()
     #print data.read_number
     try:
     #    print "in try"
         if args.verbose is True:
-            print "read number", data.read_number
+            print ("read number", data.read_number)
         readnumber = data.read_number
-    except Exception, err:
+    except Exception as err:
         if args.verbose is True:
             err_string="Read Number Error : %s" % ( err)
         next
     try:
         if args.verbose is True:
-            print "read id" ,data.read_id
+            print ("read id" ,data.read_id)
         readnumber = data.read_id
-    except Exception, err:
+    except Exception as err:
         if args.verbose is True:
             err_string="Read Number Error : %s" % ( err)
         next
     #print "set readnumber", readnumber
     if args.verbose is True:
-        print "read number is", readnumber
+        print ("read number is", readnumber)
     if ((time.time()-readstarttime) > args.time):
         #if args.verbose is True:
-        print "We have a timeout ",channel_id
+        print ("We have a timeout ",channel_id)
         #logging.info('%s,%s,%s,%s', channel_id, data.read_id, 'TOT',data.events[0].start)
         return 'timeout',channel_id,readnumber,data.events[0].start
     elif (args.skip is True and int(channel_id) %2 == 0) :
         if args.verbose is True:
-            print "Even numbered channel so skip"
+            print ("Even numbered channel so skip")
         return 'evenskip',channel_id,readnumber,data.events[0].start
     else:
         if args.verbose is True:
-            print "Odd numbered channel - processing!"
+            print ("Odd numbered channel - processing!")
         try:
             squiggle = extractsquig(data.events)
             if args.verbose is True:
-                print squiggle
+                print (squiggle)
             #return "skip",channel_id,readnumber,data.events[0].start,"squiggleres"
             #squiggleres = squiggle_search2(squiggle,channel_id,readnumber,kmerhash,seqlen,args)
             squiggleres = squiggle_search2(squiggle,channel_id,readnumber,args,seqids,threedarray,seqlen)
-            if args.verbose is True: print squiggleres
+            if args.verbose is True: print (squiggleres)
             #result = go_or_no(squiggleres[0],squiggleres[2],squiggleres[3],seqlen,args)
             seqid,_,direction,position,__,___,____=squiggleres
             #seqid,_,direction,position,__=squiggleres
             result = go_or_no(seqid,direction,position,seqlen,args)
-            if args.verbose is True: print "Result ",result
+            if args.verbose is True: print ("Result ",result)
             #print result,channel_id,readnumber,data.events[0].start,squiggleres
             return result,channel_id,readnumber,data.events[0].start,squiggleres
-        except Exception, err:
+        except Exception as err:
             err_string="Time Warping Stuff : %s" % ( err)
-            print >>sys.stderr, err_string
+            print (err_string, file=sys.stderr)
 
 #######################################################################
 def go_or_no(seqid,direction,position,seqlen,args):
     for sequence in args.targets:
-        if args.verbose is True: print sequence
+        if args.verbose is True: print (sequence)
         start = int(float(sequence.split(':', 1 )[1].split('-',1)[0]))
         stop = int(float(sequence.split(':', 1 )[1].split('-',1)[1]))
         length = seqlen[seqid]
         if args.verbose is True:
-            print start,stop,length
-            print sequence.split(':', 1 )[0]
-            print type(seqid)
+            print (start,stop,length)
+            print (sequence.split(':', 1 )[0])
+            print (type(seqid))
         #We note that the average template read length is 6kb for the test lambda dataset. Therefore we are interested in reads which start at least 3kb in advance of our position of interest
         balance = args.length/2
         if seqid.find(sequence.split(':', 1 )[0]) >= 0:
-            if args.verbose is True: print "Found it"
+            if args.verbose is True: print ("Found it")
             if direction == "F":
-                if args.verbose is True: print "Forward Strand"
+                if args.verbose is True: print ("Forward Strand")
                 if position >= ( start - balance ) and position <= stop:
                     return "Sequence"
             elif direction == "R":
-                if args.verbose is True: print "Reverse Strand"
+                if args.verbose is True: print ("Reverse Strand")
                 ### We assume that coordinates are reported with respect to the forward strand regardless of
                 ### wether you are matching to forward or reverse.
                 if position >= ( start - balance ) and position <= stop:
@@ -211,43 +211,58 @@ def extractsquig(events):
 
 
 
-def squiggle_search2(squiggle,channel_id,read_id,args,seqids,threedarray,seqlen):
+def squiggle_search2(squiggle, channel_id, read_id, args, seqids, threedarray, seqlen):
     '''
     This function matches an incoming squiggle to a reference. Coordinates are returned with respect to the forward
     strand only. This is important to recall for subsequent downstream processing. Thus a read which is reported as
     mapping to the reverse strand will report its coodinates on the forward strand.
     '''
-    result=[]
-    blocksize=200000
-    overlap=blocksize-500
+    result = []
+    blocksize = 200000
+    overlap = blocksize - 500
+
+    # Search in each seqIDs
     for ref in seqids:
-        refid=seqids.index(ref)
-        Rprime,Fprime=threedarray[refid]
-        #queryarray = sklearn.preprocessing.scale(np.array(squiggle),axis=0,with_mean=True,with_std=True,copy=True)
-        queryarray = sklearn.preprocessing.scale(np.array(squiggle,dtype=float),axis=0,with_mean=True,with_std=True,copy=True)
+        # Obtain reference ID and Rprime, Fprime lists
+        refID = seqids.index(ref)
+        Rprime, Fprime = threedarray[refID]
+
+        # Preprocess squiggle
+        queryarray = sklearn.preprocessing.scale(np.array(squiggle, dtype=float), axis=0, with_mean=True, with_std=True, copy=True)
+
+        # Run search on forward reference
         refsubset = Fprime
-        indexes = np.array(xrange(len(refsubset)))
-        subrefs = [refsubset[i:i+blocksize]for i in indexes[::overlap]]
-        for blockid,ref_ in enumerate(subrefs):
-            #current = multiprocessing.current_process()
+        indexes = np.array(range(len(refsubset)))
+        subrefs = [refsubset[i:i+blocksize] for i in indexes[::overlap]]
+        for blockID, ref_ in enumerate(subrefs):
+            # Get pre-DTW time
             tic = time.time()
-            dist, cost, path = mlpy.dtw_subsequence(queryarray,ref_)
-            #result.append((dist,ref,"F",path[1][0],path[1][-1],path[0][0],path[0][-1]))
-            result.append((dist,ref,"F",path[1][0]+(blockid*overlap),path[1][-1]+(blockid*overlap),path[0][0],path[0][-1]))
-            #print "Blockid", blockid, time.time()-tic
+
+            # Run DTW for squiggle and forward reference
+            dist, cost, path = mlpy.dtw_subsequence(queryarray, ref_)
+            result.append((dist, ref, "F", path[1][0] + (blockID*overlap), path[1][-1] + (blockID*overlap), path[0][0], path[0][-1]))
+
+            # Print time spent in DTW
+            print("blockID", blockID, "Ftime: ", (time.time() - tic), " sec")
+
+        # Run search on reverse reference
         refsubset = Rprime
-        subrefs = [refsubset[i:i+blocksize]for i in indexes[::overlap]]
-        for blockid,ref_ in enumerate(subrefs):
-            #print "Blockid", blockid, time.time()
-            dist, cost, path = mlpy.dtw_subsequence(queryarray,ref_)
-            #result.append((dist,ref,"R",path[1][0]+(blockid*overlap),ref))
-            #result.append((dist,ref,"R",path[1][0]+(blockid*overlap),path[1][-1]+(blockid*overlap),path[0][0],path[0][-1]))
-            #result.append((dist,ref,"R",(len(Rprime)-(path[1][-1]+(blockid*overlap))),(len(Rprime)-(path[1][0]+(blockid*overlap))),path[0][0],path[0][-1]))
-            #Corrected for the fact that this is a reverse complement
-            result.append((dist,ref,"R",(len(Rprime)-(path[1][0]+(blockid*overlap))),(len(Rprime)-(path[1][-1]+(blockid*overlap))),path[0][0],path[0][-1]))
+        subrefs = [refsubset[i:i+blocksize] for i in indexes[::overlap]]
+        for blockID, ref_ in enumerate(subrefs):
+            # Get pre-DTW time
+            tic = time.time()
+
+            # Run DTW for squiggle and reverse reference
+            dist, cost, path = mlpy.dtw_subsequence(queryarray, ref_)
+            # Corrected for the fact that this is a reverse complement
+            result.append((dist,ref,"R",(len(Rprime)-(path[1][0]+(blockID*overlap))),(len(Rprime)-(path[1][-1]+(blockID*overlap))),path[0][0],path[0][-1]))
+            
+            # Print time spent in DTW
+            print("blockID", blockID, "Rtime: ", (time.time() - tic), " sec")
+
     # Note first two elements flipped for return deliberately.
-    distanceR,seqmatchnameR,frR,rsR,reR,qsR,qeR=sorted(result,key=lambda result: result[0])[0]
-    return seqmatchnameR,distanceR,frR,rsR,reR,qsR,qeR
+    distanceR, seqmatchnameR, frR, rsR, reR, qsR, qeR = sorted(result, key=lambda result: result[0])[0]
+    return seqmatchnameR, distanceR, frR, rsR, reR, qsR, qeR
 
 
 
@@ -299,11 +314,11 @@ def process_ref_fasta_raw(ref_fasta,model_kmer_means,args,kmer_len):
 '''
 def get_custom_fasta(ref_fasta,subsectionlist,args,model_kmer_means,kmer_len):
     if (args.verbose is True):
-        print "Generating a custom fasta"
+        print ("Generating a custom fasta")
     sequencedict=dict()
     for sequence in subsectionlist:
         if (args.verbose is True):
-            print sequence
+            print (sequence)
         for record in SeqIO.parse(ref_fasta, 'fasta'):
             if (record.id == sequence):
                 if (sequence not in sequencedict):
@@ -316,7 +331,7 @@ def get_custom_fasta(ref_fasta,subsectionlist,args,model_kmer_means,kmer_len):
                     else:
                         sequencedict[sequence]=str(record.seq[sections[0]-1:sections[1]-1])
     if (args.verbose is True):
-        print "processing the custom fasta"
+        print ("processing the custom fasta")
     kmer_means=dict()
     for sequence in sequencedict:
         kmer_means[record.id]=dict()
@@ -326,14 +341,16 @@ def get_custom_fasta(ref_fasta,subsectionlist,args,model_kmer_means,kmer_len):
         tmp["R"]=list()
         tmp["Fprime"]=list()
         tmp["Rprime"]=list()
-        print "ID", record.id
-        print "length", len(record.seq)
-        print "FORWARD STRAND"
-        seq = Seq(sequencedict[sequence], generic_dna)
+        print ("ID", record.id)
+        print ("length", len(record.seq))
+        print ("FORWARD STRAND")
+        # seq = Seq(sequencedict[sequence], generic_dna)
+        seq = Seq(sequencedict[sequence])
+
         for x in range(len(seq)+1-kmer_len):
             kmer = str(seq[x:x+kmer_len])
             tmp["F"].append(float(model_kmer_means[kmer]))
-        print "REVERSE STRAND"
+        print ("REVERSE STRAND")
         seq = revcomp = seq.reverse_complement()
         for x in range(len(seq)+1-kmer_len):
             kmer = str(seq[x:x+kmer_len])
@@ -355,7 +372,7 @@ def get_custom_fasta(ref_fasta,subsectionlist,args,model_kmer_means,kmer_len):
     items_=map(processItems,items)
     seqids,arrays=zip(*items_)
     z=len(seqids)
-    print arrays
+    print (arrays)
     r,c=list(arrays)[0].shape
     threedarray=multiprocessing.Array(ctypes.c_double,z*r*c)
     threedarrayshared_array = np.ctypeslib.as_array(threedarray.get_obj())
@@ -364,59 +381,65 @@ def get_custom_fasta(ref_fasta,subsectionlist,args,model_kmer_means,kmer_len):
     return seqids,threedarrayshared_array
 
 
-def process_ref_fasta(ref_fasta,model_kmer_means,kmer_len):
-    print "processing the reference fasta."
-    kmer_means=dict()
+def process_ref_fasta(ref_fasta, model_kmer_means, kmer_len):
+    print ("[process_ref_fasta] Processing the reference fasta.")
+    kmer_means = dict()
+
+    kmer_len_real = kmer_len - 3
+
     for record in SeqIO.parse(ref_fasta, 'fasta'):
-        kmer_means[record.id]=dict()
-        tmp=dict()
-        tmp2=dict()
-        tmp["F"]=list()
-        tmp["R"]=list()
-        tmp["Fprime"]=list()
-        tmp["Rprime"]=list()
-        print "ID", record.id
-        print "length", len(record.seq)
-        print "FORWARD STRAND"
+        kmer_means[record.id] = dict()
+        tmp = dict()
+        tmp2 = dict()
+        tmp["F"] = list()
+        tmp["R"] = list()
+        tmp["Fprime"] = list()
+        tmp["Rprime"] = list()
+        print("ID", record.id)
+        print("length", len(record.seq))
+
+        print("FORWARD STRAND")
         seq = record.seq
-        for x in range(len(seq)+1-kmer_len):
-            kmer = str(seq[x:x+kmer_len])
+        for x in range(len(seq)+1-kmer_len_real):
+            kmer = "b\'" + str(seq[x : x+kmer_len_real]) + "\'"
             tmp["F"].append(float(model_kmer_means[kmer]))
-        print "REVERSE STRAND"
+
+        print ("REVERSE STRAND")
         seq = revcomp = record.seq.reverse_complement()
-        for x in range(len(seq)+1-kmer_len):
-            kmer = str(seq[x:x+kmer_len])
+        for x in range(len(seq)+1-kmer_len_real):
+            kmer = "b\'" + str(seq[x : x+kmer_len_real]) + "\'"
             tmp["R"].append(float(model_kmer_means[kmer]))
-        tmp2["Fprime"]=sklearn.preprocessing.scale(tmp["F"], axis=0, with_mean=True, with_std=True, copy=True)
-        tmp2["Rprime"]=sklearn.preprocessing.scale(tmp["R"], axis=0, with_mean=True, with_std=True, copy=True)
-        kmer_means[record.id]=tmp2
+
+        tmp2["Fprime"] = sklearn.preprocessing.scale(tmp["F"], axis=0, with_mean=True, with_std=True, copy=True)
+        tmp2["Rprime"] = sklearn.preprocessing.scale(tmp["R"], axis=0, with_mean=True, with_std=True, copy=True)
+        kmer_means[record.id] = tmp2
     '''From this dictionary we will return a pair consisting of a list of keys(lookup for sequence name) and a
-    3D array each slice of which relates to the seqid,forward and reverse and then the values. This will then
+    3D array each slice of which relates to the seqid, forward and reverse and then the values. This will then
     be used as a numpy shared memory multiprocessing array. We hope.
     Caution - the dictionary returns in the wrong order.
     '''
 
-    items=kmer_means.items()
-    '''for k,v in kmer_means.items():
-        for x,y in kmer_means[k].items():
-            print "idiot check",k,x
-            '''
-    items_=map(processItems,items)
-    seqids,arrays=zip(*items_)
-    z=len(seqids)
-    r,c=list(arrays)[0].shape
-    threedarray=multiprocessing.Array(ctypes.c_double,z*r*c)
+    # Iterator for kmer_means
+    items = kmer_means.items()
+    items_ = map(processItems, items)
+    seqids, arrays = zip(*items_)
+
+    # 3d array containing [nSeq][nLists][ListValues]
+    nSeq = len(seqids)
+    row, col = list(arrays)[0].shape
+    threedarray = multiprocessing.Array(ctypes.c_double, nSeq*row*col)
     threedarrayshared_array = np.ctypeslib.as_array(threedarray.get_obj())
-    a = np.array(arrays,dtype=np.float32)
+    a = np.array(arrays, dtype=np.float32)
     threedarrayshared_array = a
-    return seqids,threedarrayshared_array
+    return seqids, threedarrayshared_array
 
 
-def processItems((seqid,d)):
-    result=[]
-    for _,l in d.items():
-        result.append(l)
-    return seqid,np.array(result)
+def processItems(d):
+    seqid = d[0]
+    result = []
+    for k, v in d[1].items():
+        result.append(v)
+    return seqid, np.array(result)
 
 
 #######################################################################
@@ -427,20 +450,21 @@ def process_model_file(model_file):
     This function parses a csv model file into a dict to provide model simulation and return the dict and kmer lenght
     '''
     model_kmers = dict()
-    with open(model_file, 'rb') as csv_file:
+    with open(model_file, 'rt') as csv_file:
+        # Model file
         reader = csv.reader(csv_file, delimiter="\t")
         d = list(reader)
-        header = d[0]
-        #print header
-        meancolumnid = header.index("level_mean")
-        kmercolumnid = header.index("kmer")
 
+        # First row - kmer, level_mean, level_stdv
+        header = d[0]
+        kmercolumnid = header.index("kmer")
+        meancolumnid = header.index("level_mean")
+
+        # All data
         d2 = np.array(d[1:])
-        #for x in d2:
-        #    print x
-        model_kmers=dict(d2[:,[kmercolumnid,meancolumnid]])
-        kmer_length=len(d2[0][kmercolumnid])
-    return model_kmers,kmer_length
+        model_kmers = dict(d2[:, [kmercolumnid, meancolumnid]])
+        kmer_length = len(d2[0][kmercolumnid])
+    return model_kmers, kmer_length
 
 
 
@@ -507,9 +531,9 @@ def execute_command_as_string( data, host = None, port = None):
         f = None
         try:
             f = _urlopen(req)
-        except Exception, err:
+        except Exception as err:
             err_string = "Failed to connect to minKNOW. Likely reasons include minKNOW not running, the wrong IP address for the minKNOW server or firewall issues. Two way control will not be possible with minKNOW."
-            print err_string, err
+            print (err_string, err)
         json_respond = json.loads(f.read())
 
         f.close()
@@ -559,7 +583,7 @@ def query_yes_no(question, default="yes"):
 
 
 def die_nicely(oper):
-    print "terminating sub-processes...."
+    print ("terminating sub-processes....")
 
     pid = os.getpid()
 
