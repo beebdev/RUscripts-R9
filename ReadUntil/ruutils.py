@@ -5,7 +5,6 @@ import urllib.request as urllib2
 import json
 from Bio import SeqIO
 from Bio.Seq import Seq
-# from Bio.Alphabet import generic_dna
 from io import StringIO
 import sklearn.preprocessing
 import multiprocessing
@@ -15,30 +14,30 @@ import time
 import h5py
 import psutil
 
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
 
-
-
-def check_files(listoffiles):
+def check_files(files):
     """
     Supplied a list of files, this routine checks to see if they exist. If the files cannot be found, the program exits.
     """
-    print ("\n\rChecking Files...")
-    for file in listoffiles:
+    logger.info("Checking Files...")
+    for file in files:
         if not os.path.isfile(file):
-            print ("\n\r**! One of the files you supplied cannot be found. Please check:\n\r\n\r"+str(file)+"\n\r\n\r**! This program will now exit.\n\r")
+            logger.error("One or more files cannot be found. Exiting..")
             sys.exit()
-    print ("\n\rAll OK.\n\r")
+    logger.info("File check complete.")
 
-def checkfasta(fasta):
+def check_fasta(fasta):
     try:
         for record in SeqIO.parse(fasta, 'fasta'):
-            print (record.id)
+            logger.info("Fasta record: %s", record.id)
     except:
-        print ("Fasta does not appear to be valid.\n\r")
-        print ("This program will now exit. Please try again.\n\r")
+        logger.error("Invalid Fasta. Exiting..")
         sys.exit()
 
-def correctposition(value,ranges,sequence):
+def correct_position(value,ranges,sequence):
     correction = 0
     for range in ranges[sequence]:
         if value >= range[0] and value <= range[1]:
@@ -71,7 +70,7 @@ def merge_ranges(ranges):
     yield current_start, current_stop
 
 
-def scaleLocally(a, sz):
+def scale_locally(a, sz):
 	normWinSz=sz
 	n = (normWinSz/2)+1 # eg win 64 -> n == 33
 	start = scale(a[ : normWinSz+1 ])[:n]
@@ -203,7 +202,7 @@ def go_or_no(seqid,direction,position,seqlen,args):
 
 
 ######################################################################
-def extractsquig(events):
+def extract_squig(events):
     squiggle=list()
     for event in events:
         squiggle.append(np.float32(event.mean))
@@ -243,7 +242,7 @@ def squiggle_search2(squiggle, channel_id, read_id, args, seqids, threedarray, s
             result.append((dist, ref, "F", path[1][0] + (blockID*overlap), path[1][-1] + (blockID*overlap), path[0][0], path[0][-1]))
 
             # Print time spent in DTW
-            print("blockID", blockID, "Ftime: ", (time.time() - tic), " sec")
+            # logger.info("Ftime_%s: %s sec", blockID, (time.time() - tic))
 
         # Run search on reverse reference
         refsubset = Rprime
@@ -258,7 +257,7 @@ def squiggle_search2(squiggle, channel_id, read_id, args, seqids, threedarray, s
             result.append((dist,ref,"R",(len(Rprime)-(path[1][0]+(blockID*overlap))),(len(Rprime)-(path[1][-1]+(blockID*overlap))),path[0][0],path[0][-1]))
             
             # Print time spent in DTW
-            print("blockID", blockID, "Rtime: ", (time.time() - tic), " sec")
+            # logger.info("Rtime_%s: %s sec", blockID, (time.time() - tic))
 
     # Note first two elements flipped for return deliberately.
     distanceR, seqmatchnameR, frR, rsR, reR, qsR, qeR = sorted(result, key=lambda result: result[0])[0]
@@ -269,10 +268,10 @@ def squiggle_search2(squiggle, channel_id, read_id, args, seqids, threedarray, s
 
 ######################################################
 def get_seq_len(ref_fasta):
-    seqlens=dict()
+    seqlens = dict()
     for record in SeqIO.parse(ref_fasta, 'fasta'):
-        seq=record.seq
-        seqlens[record.id]=len(seq)
+        seq = record.seq
+        seqlens[record.id] = len(seq)
     return seqlens
 
 #######################################################################
@@ -382,9 +381,7 @@ def get_custom_fasta(ref_fasta,subsectionlist,args,model_kmer_means,kmer_len):
 
 
 def process_ref_fasta(ref_fasta, model_kmer_means, kmer_len):
-    print ("[process_ref_fasta] Processing the reference fasta.")
     kmer_means = dict()
-
     kmer_len_real = kmer_len - 3
 
     for record in SeqIO.parse(ref_fasta, 'fasta'):
@@ -395,24 +392,25 @@ def process_ref_fasta(ref_fasta, model_kmer_means, kmer_len):
         tmp["R"] = list()
         tmp["Fprime"] = list()
         tmp["Rprime"] = list()
-        print("ID", record.id)
-        print("length", len(record.seq))
+        logger.info("Record ID: %s", record.id)
+        logger.info("Record length: %s", len(record.seq))
 
-        print("FORWARD STRAND")
         seq = record.seq
         for x in range(len(seq)+1-kmer_len_real):
             kmer = "b\'" + str(seq[x : x+kmer_len_real]) + "\'"
             tmp["F"].append(float(model_kmer_means[kmer]))
+        logger.info("Processed FORWARD strand")
 
-        print ("REVERSE STRAND")
         seq = revcomp = record.seq.reverse_complement()
         for x in range(len(seq)+1-kmer_len_real):
             kmer = "b\'" + str(seq[x : x+kmer_len_real]) + "\'"
             tmp["R"].append(float(model_kmer_means[kmer]))
+        logger.info("Processed REVERSE strand")
 
         tmp2["Fprime"] = sklearn.preprocessing.scale(tmp["F"], axis=0, with_mean=True, with_std=True, copy=True)
         tmp2["Rprime"] = sklearn.preprocessing.scale(tmp["R"], axis=0, with_mean=True, with_std=True, copy=True)
         kmer_means[record.id] = tmp2
+
     '''From this dictionary we will return a pair consisting of a list of keys(lookup for sequence name) and a
     3D array each slice of which relates to the seqid, forward and reverse and then the values. This will then
     be used as a numpy shared memory multiprocessing array. We hope.
@@ -421,7 +419,7 @@ def process_ref_fasta(ref_fasta, model_kmer_means, kmer_len):
 
     # Iterator for kmer_means
     items = kmer_means.items()
-    items_ = map(processItems, items)
+    items_ = map(process_items, items)
     seqids, arrays = zip(*items_)
 
     # 3d array containing [nSeq][nLists][ListValues]
@@ -434,7 +432,7 @@ def process_ref_fasta(ref_fasta, model_kmer_means, kmer_len):
     return seqids, threedarrayshared_array
 
 
-def processItems(d):
+def process_items(d):
     seqid = d[0]
     result = []
     for k, v in d[1].items():

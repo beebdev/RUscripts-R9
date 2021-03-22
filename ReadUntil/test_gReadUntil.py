@@ -1,11 +1,9 @@
-#from read_until import ReadUntil
 import time
 import errno
 from socket import error as socket_error
 import threading
 import sys, os, re
 from Bio import SeqIO
-# from StringIO import StringIO
 from io import StringIO
 import string
 import mlpy
@@ -21,341 +19,22 @@ import pickle
 import multiprocessing
 import subprocess
 import re
-import logging
 import glob
 import h5py
 import platform
 
-from ruutils import process_model_file, check_files, checkfasta, process_ref_fasta, squiggle_search2, go_or_no
+from ruutils import process_model_file, check_files, check_fasta, process_ref_fasta, squiggle_search2, go_or_no
 
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
 
-######################################################
 def get_seq_len(ref_fasta):
-    seqlens=dict()
+    seqlens = dict()
     for record in SeqIO.parse(ref_fasta, 'fasta'):
-        seq=record.seq
-        seqlens[record.id]=len(seq)
+        seq = record.seq
+        seqlens[record.id] = len(seq)
     return seqlens
-
-
-######################################################
-def process_ref_fasta2(ref_fasta,model_kmer_means):
-    print("processing the reference fasta.")
-    kmer_len=5
-    kmer_means=dict()
-
-    for record in SeqIO.parse(ref_fasta, 'fasta'):
-        kmer_means[record.id]=dict()
-        kmer_means[record.id]["F"]=list()
-#        kmer_means[record.id]["R"]=list()
-
-        seq = record.seq
-        for x in range(len(seq)+1-kmer_len):
-            kmer = str(seq[x:x+kmer_len])
-            kmer_means[record.id]["F"].append(float(model_kmer_means[kmer]))
-
-#        seq = revcomp = record.seq.reverse_complement()
-#        for x in range(len(seq)+1-kmer_len):
-#            kmer = str(seq[x:x+kmer_len])
-#            kmer_means[record.id]["R"].append(float(model_kmer_means[kmer]))
-
-    return kmer_means
-#######################################################################
-
-def process_ref_fasta_orig(ref_fasta,model_kmer_means,seqlen,kmerlen):
-    print("processing the reference fasta.")
-    kmer_len=kmerlen
-    kmer_means=dict()
-    for record in SeqIO.parse(ref_fasta, 'fasta'):
-        kmer_means[record.id]=dict()
-        kmer_means[record.id]["F"]=list()
-        kmer_means[record.id]["R"]=list()
-        kmer_means[record.id]["Fprime"]=list()
-        kmer_means[record.id]["Rprime"]=list()
-        print("ID", record.id)
-        print("length", len(record.seq))
-        print("FORWARD STRAND")
-
-        seq = record.seq
-        for x in range(len(seq)+1-kmer_len):
-            kmer = str(seq[x:x+kmer_len])
-            kmer_means[record.id]["F"].append(float(model_kmer_means[kmer]))
-            #if model_kmer_means[kmer]:
-                #print x, kmer, model_kmer_means[kmer]
-
-        print("REVERSE STRAND")
-        seq = revcomp = record.seq.reverse_complement()
-        for x in range(len(seq)+1-kmer_len):
-            kmer = str(seq[x:x+kmer_len])
-            kmer_means[record.id]["R"].append(float(model_kmer_means[kmer]))
-
-        kmer_means[record.id]["Fprime"]=sklearn.preprocessing.scale(kmer_means[record.id]["F"], axis=0, with_mean=True, with_std=True, copy=True)
-        kmer_means[record.id]["Rprime"]=sklearn.preprocessing.scale(kmer_means[record.id]["R"], axis=0, with_mean=True, with_std=True, copy=True)
-    return kmer_means
-
-#######################################################################
-
-def process_ref_fasta_subset(ref_fasta,model_kmer_means,seqlen,kmerlen):
-    print("processing the reference fasta.")
-    kmer_means=dict()
-    for record in SeqIO.parse(ref_fasta, 'fasta'):
-        chunkcounter=0
-        for sequence in args.targets:
-            print(sequence)
-            chunkcounter += 1
-            print("ID", record.id)
-            print("length", len(record.seq))
-            start = int(float(sequence.split(':', 1 )[1].split('-',1)[0]))
-            stop = int(float(sequence.split(':', 1 )[1].split('-',1)[1]))
-            seqname = sequence.split(':', 1)[0]
-            #length = seqlen[seqid]
-            print(chunkcounter,sequence,start,stop,seqname)
-            if seqname in record.id:
-                seqchunkname=record.id + "_" + str(chunkcounter)
-                print("We want to extract this chunk " + seqchunkname)
-                kmer_means[seqchunkname]=dict()
-                kmer_means[seqchunkname]["F"]=list()
-                kmer_means[seqchunkname]["R"]=list()
-                kmer_means[seqchunkname]["Fprime"]=list()
-                kmer_means[seqchunkname]["Rprime"]=list()
-                print("ID", seqchunkname)
-                print("length", len(record.seq[start:stop]))
-                print("FORWARD STRAND")
-                seq = record.seq[start:stop]
-                #print (seq)
-                for x in range(len(seq)+1-kmer_len):
-                    #print (x)
-                    kmer = str(seq[x:x+kmer_len])
-                    kmer_means[seqchunkname]["F"].append(float(model_kmer_means[kmer]))
-                print ("REVERSE STRAND")
-                seq = revcomp = record.seq[start:stop]
-                for x in range(len(seq)+1-kmer_len):
-                    kmer = str(seq[x:x+kmer_len])
-                    kmer_means[seqchunkname]["R"].append(float(model_kmer_means[kmer]))
-
-                kmer_means[seqchunkname]["Fprime"]=sklearn.preprocessing.scale(kmer_means[seqchunkname]["F"], axis=0, with_mean=True, with_std=True, copy=True)
-                kmer_means[seqchunkname]["Rprime"]=sklearn.preprocessing.scale(kmer_means[seqchunkname]["R"], axis=0, with_mean=True, with_std=True, copy=True)
-    return kmer_means
-
-#######################################################################
-
-
-def runProcess(exe):
-    p=subprocess.Popen(exe, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    while(True):
-        retcode= p.poll()
-        line=p.stdout.readline()
-        yield line
-        if(retcode is not None):
-            break
-
-#######################################################################
-def squiggle_search(squiggle,kmerhash,channel_id,read_id,seqlen):
-    result=[]
-    for id in kmerhash:
-#        query = sklearn.preprocessing.scale(squiggle,axis=0,with_mean=True,with_std=True,copy=True)
-#        compa = sklearn.preprocessing.scale(kmerhash[id]["F"],axis=0,with_mean=True,with_std=True,copy=True)
-#        compb = sklearn.preprocessing.scale(kmerhash[id]["R"],axis=0,with_mean=True,with_std=True,copy=True)
-        #starttime = time.time()
-#        dist, cost, path = mlpy.dtw_subsequence(query,compa)
-#        result.append((dist,id,"F",path))
-#        dist, cost, path = mlpy.dtw_subsequence(query,compb)
-#        result.append((dist,id,"R",path))
-        #Here we are going to try to call a gpu based time warp for this data. To do this we need to write out a file to query with
-        #Ideally this should have a unique name. We shall call it channel_id_read_id.
-        #To do this we need the read_id and channel_id
-        queryfile=str(channel_id)+"_"+str(read_id)+"_query.bin"
-        #We are going to normalise this sequence with the sklearn preprocessing algorithm to see what happens.
-        queryarray = sklearn.preprocessing.scale(np.array(squiggle),axis=0,with_mean=True,with_std=True,copy=True)
-        with open(queryfile, "wb") as f:
-            f.write(ar.array("f", queryarray))
-        subjectfile = id+"_"+"F"+"_subject.bin"
-        subjectfile = re.sub('\|','_',subjectfile)
-        seqlen2 = str(seqlen[id])
-        commands = queryfile+' '+subjectfile+' 200 '+seqlen2+' 0.05'
-        current = str(multiprocessing.current_process())
-        currentnum=int(re.search(r'\d+', current).group())
-        gpucode=str()
-        if (currentnum % 2 == 0):
-            #print ("Even")
-            gpucode='./GPU-DTW '
-        else:
-            #print ("Odd")
-            gpucode='./GPU-DTW '
-        #print ("Running forward";)
-        runcommand = gpucode+commands
-        location = ()
-        distance = ()
-        for line in runProcess(runcommand.split()):
-            #print (line.rstrip('\n'))
-            if "Location" in line:
-                location = int(line.split(': ',1)[1].rstrip('\n'))
-                print ("Location",location)
-            if "Distance" in line:
-                distance = float(line.split(': ',1)[1].rstrip('\n'))
-                print ("Distance",distance)
-        result.append((distance,id,"F",location))
-        os.remove(queryfile)
-
-
-
-    return sorted(result,key=lambda result: result[0])[0][1],sorted(result,key=lambda result: result[0])[0][0],sorted(result,key=lambda result: result[0])[0][2],sorted(result,key=lambda result: result[0])[0][3]
-
-
-#######################################################################
-def squiggle_search2_old(squiggle,kmerhash,seqlen):
-    result=[]
-
-    for ref in kmerhash:
-        #print ("ss2",ref)
-        queryarray = sklearn.preprocessing.scale(np.array(squiggle),axis=0,with_mean=True,with_std=True,copy=True)
-
-        dist, cost, path = mlpy.dtw_subsequence(queryarray,kmerhash[ref]['Fprime'])
-        result.append((dist,ref,"F",path[1][0],ref,path[1][-1]))
-        dist, cost, path = mlpy.dtw_subsequence(queryarray,kmerhash[ref]['Rprime'])
-        result.append((dist,ref,"R",path[1][0],ref,path[1][-1]))
-
-    #('J02459', 41.017514495176989, 'F', 10003, 'J02459', 10198)
-    #distanceR,seqmatchnameR,frR,rsR,reR,qsR,qeR=sorted(result,key=lambda result: result[0])[0]
-    #return seqmatchnameR,distanceR,frR,rsR,reR,qsR,qeR
-    return sorted(result,key=lambda result: result[0])[0][1],sorted(result,key=lambda result: result[0])[0][0],sorted(result,key=lambda result: result[0])[0][2],sorted(result,key=lambda result: result[0])[0][3],sorted(result,key=lambda result: result[0])[0][4],sorted(result,key=lambda result: result[0])[0][5]
-
-######################################################################
-
-######################################################################
-def extractsquig(events):
-    squiggle=list()
-    for event in events:
-        squiggle.append(event.mean)
-    return(squiggle)
-
-class LockedDict(dict):
-    """
-    A dict where __setitem__ is synchronised with a new function to
-    atomically pop and clear the map.
-    """
-    def __init__(self, *args, **kwargs):
-        self.lock = threading.Lock()
-        super(LockedDict, self).__init__(*args, **kwargs)
-
-    def __setitem__(self, key, value):
-        with self.lock:
-            super(LockedDict, self).__setitem__(key, value)
-
-    def pop_all_and_clear(self):
-        with self.lock:
-            d=dict(self) # take copy as a normal dict
-            super(LockedDict, self).clear()
-            return d
-
-#######################################################################
-def go_or_no2(seqid,direction,position,seqlen,args,distance,refmatchlen,querymatchlen):
-    #print ("GO OR NO GO")
-    for sequence in args.targets:
-        #print ("IN args.targets")
-        #print (sequence)
-        start = int(float(sequence.split(':', 1 )[1].split('-',1)[0]))
-        stop = int(float(sequence.split(':', 1 )[1].split('-',1)[1]))
-        length = seqlen[seqid]
-
-        #print ("start",start,"stop",stop,"length",length,"direction",direction,"position",position)
-        #We note that the average template read length is 6kb for the test lambda dataset. Therefore we are interested in reads which start at least 3kb in advance of our position of interest
-        balance = 3000
-        #print ("Balance SET")
-        if seqid.find(sequence.split(':', 1 )[0]) >= 0:
-        #    print ("Found it")
-            if direction == "F":
-        #        print ("Forward Strand")
-        #        print (position, (start-balance),stop)
-                if position >= ( start - balance ) and position <= stop:
-        #            print ("RETURNING SEQUENCE")
-                    return "Sequence"
-            elif direction == "R":
-                if position >= ( length - stop - balance) and position <= ( length - start ):
-                    #print ("Reverse Strand")
-        #            print ("Returning SEQUENCE")
-                    return "Sequence"
-        #else:
-        #    print ("seqID find loop failed")
-    #print ("Returning SKIP")
-    return "Skip"
-
-
-#######################################################################
-def go_or_no_old(seqid,direction,position,seqlen,args):
-    #print ("GO OR NO GO")
-    for sequence in args.targets:
-        #print ("IN args.targets")
-        #print (sequence)
-        start = int(float(sequence.split(':', 1 )[1].split('-',1)[0]))
-        stop = int(float(sequence.split(':', 1 )[1].split('-',1)[1]))
-        length = seqlen[seqid]
-
-        #print ("start",start,"stop",stop,"length",length,"direction",direction,"position",position)
-        #We note that the average template read length is 6kb for the test lambda dataset. Therefore we are interested in reads which start at least 3kb in advance of our position of interest
-        balance = 3000
-        #print ("Balance SET")
-        if seqid.find(sequence.split(':', 1 )[0]) >= 0:
-        #    print ("Found it")
-            if direction == "F":
-        #        print ("Forward Strand")
-        #        print (position, (start-balance),stop)
-                if position >= ( start - balance ) and position <= stop:
-        #            print ("RETURNING SEQUENCE")
-                    return "Sequence"
-            elif direction == "R":
-                if position >= ( length - stop - balance) and position <= ( length - start ):
-                    #print ("Reverse Strand")
-        #            print ("Returning SEQUENCE")
-                    return "Sequence"
-        #else:
-        #    print ("seqID find loop failed")
-    #print ("Returning SKIP")
-    return "Skip"
-
-###################
-
-def mp_worker(channel_id, data,kmerhash,seqlen,readstarttime,kmerhash_subset):
-    if ((time.time()-readstarttime) > args.time):
-        print ("We have a timeout")
-        return 'timeout',channel_id,data.read_id,data.events[0].start
-    else:
-        try:
-            print ("Read start time",readstarttime)
-            squiggle = extractsquig(data.events)
-            squiggleres = squiggle_search2(squiggle,channel_id,data.read_id,kmerhash,seqlen)
-            print ("Full Length:",squiggleres)
-            print ("Full Length Match Length:", squiggleres[5]-squiggleres[3])
-            squiggleres2 = squiggle_search2(squiggle,channel_id,data.read_id,kmerhash_subset,seqlen)
-            squiggleres3 = squiggle_search2(squiggle[100:200],channel_id,data.read_id,kmerhash_subset,seqlen)
-            squiggleres4 = squiggle_search2(squiggle[50:100],channel_id,data.read_id,kmerhash_subset,seqlen)
-
-            if squiggleres2[5] > squiggleres3[3] > squiggleres2[3] and squiggleres3[3] > squiggleres4[3] > squiggleres2[3]:
-                print ("!!!!!!!!!!!!!!!! We got a good one! !!!!!!!!!!!!!!!!")
-                print ("Subset:",squiggleres2)
-                print ("Subset Match Length:", squiggleres2[5]-squiggleres2[3])
-                print ("SecondHalf:",squiggleres3)
-                print ("SecondHalf:", squiggleres3[5]-squiggleres3[3])
-                print ("FirstHalf:", squiggleres4, squiggleres4[5]-squiggleres4[3])
-                result = "Sequence"
-            else:
-                result = "Skip"
-                #print "This read don't match"
-                #print "Subset:",squiggleres2
-                #print "Subset Match Length:", squiggleres2[5]-squiggleres2[3]
-
-            #result = go_or_no(squiggleres[0],squiggleres[2],squiggleres[3],seqlen)
-            #print "result:",result
-            return result,channel_id,data.read_id,data.events[0].start,squiggleres
-        except Exception as err:
-            err_string="Time Warping Stuff : %s" % ( err)
-            print (err_string, file=sys.stderr)
-####################
-
-
-
-
-
 
 def process_hdf5(arg):
     # Extract info from arguments
@@ -378,26 +57,25 @@ def process_hdf5(arg):
         squiggleres = squiggle_search2(squiggle, 0, 0, args, seqids, threedarray, seqlen)
 
         if True:
-            print (squiggleres[0], squiggleres[2], squiggleres[3])
+            logger.info("[%s, %s, %s]", squiggleres[0], squiggleres[2], squiggleres[3])
             try:
                 result = go_or_no(squiggleres[0], squiggleres[2], squiggleres[3], seqlen,args)
             except Exception as err:
-                print ("ERROR")
-                print (err)
+                logger.error("%s", err)
     hdf.close()
     return (result,filename)
 
-
 def mycallback(arg):
     (result, filename) = arg
-    print (filename,)
     filetocheck = os.path.split(filename)
     sourcefile = filename
+
     if result == "Sequence":
         path1 = os.path.join(args.output_folder,'sequence')
         path2 = os.path.join(path1,'downloads')
         path3 = os.path.join(path2,'pass')
         path4 = os.path.join(path2,'fail')
+
         if not os.path.exists(path1):
             os.makedirs(path1)
         if not os.path.exists(path2):
@@ -407,21 +85,21 @@ def mycallback(arg):
         if not os.path.exists(path4):
             os.makedirs(path4)
 
-        print ("Sequence Found")
+        logger.info("\nFile: [%s]\nSequence found", filename)
         if "pass" in filename:
             destfile = os.path.join(path3,filetocheck[1])
         else:
             destfile = os.path.join(path4,filetocheck[1])
         try:
-            #os.symlink(sourcefile, destfile)
             shutil.copy(sourcefile,destfile)
         except Exception as err:
-            print ("File Copy Failed",err)
+            logger.error("File Copy Failed: %s", err)
     else:
         path1 = os.path.join(args.output_folder,'reject')
         path2 = os.path.join(path1,'downloads')
         path3 = os.path.join(path2,'pass')
         path4 = os.path.join(path2,'fail')
+
         if not os.path.exists(path1):
             os.makedirs(path1)
         if not os.path.exists(path2):
@@ -430,7 +108,8 @@ def mycallback(arg):
             os.makedirs(path3)
         if not os.path.exists(path4):
             os.makedirs(path4)
-        print ("No Match")
+
+        logger.info("\nFile: [%s]\nNo match", filename)
         if "pass" in filename:
             destfile = os.path.join(path3,filetocheck[1])
         else:
@@ -439,7 +118,7 @@ def mycallback(arg):
             #os.symlink(sourcefile, destfile)
             shutil.copy(sourcefile,destfile)
         except Exception as err:
-            print ("File Copy Failed",err)
+            logger.error("File copy failed: %s", err)
 
 if __name__ == "__main__":
 
@@ -458,11 +137,11 @@ if __name__ == "__main__":
         oper = 'linux'  # MS
 
 
-    ## linux version
+    ## Linux version
     if (oper == "linux"):
             config_file = os.path.join(os.path.sep, os.path.dirname(os.path.realpath('__file__')), 'amp.config')
 
-    ## linux version
+    ## Windows version
     if (oper == "windows"):
             config_file = os.path.join(os.path.sep, os.path.dirname(os.path.realpath('__file__')), 'ampW.config')
 
@@ -483,11 +162,11 @@ if __name__ == "__main__":
     parser.add_argument('-ver', '--version', action='version',version=('%(prog)s version={version} date={date}').format(version=__version__,date=__date__))
     args = parser.parse_args()
 
-    check_files((args.fasta,args.temp_model))
-    checkfasta(args.fasta)
+    check_files((args.fasta, args.temp_model))
+    check_fasta(args.fasta)
 
     if not os.path.isdir(args.watchdir):
-        print ("**! Sorry, but the folder "+args.watchdir+" cannot be found.\n\n**!  Please check you have entered the path correctly and try again.\n\n**!  This script will now terminate.\n")
+        logger.error("Folder" + args.watchdir + " cannot be found. Exiting.")
         sys.exit()
 
     # Multiprocess setup
@@ -509,26 +188,23 @@ if __name__ == "__main__":
     filenamecounter = 0
     for filename in glob.glob(os.path.join(args.watchdir, '*.fast5')):
         filenamecounter += 1
-        # print(filename)
         d.append([filename,seqids,threedarray,procampres,seqlen,args])
     for filename in glob.glob(os.path.join(args.watchdir, "pass",'*.fast5')):
         filenamecounter += 1
-        # print(filename)
         d.append([filename,seqids,threedarray,procampres,seqlen,args])
     for filename in glob.glob(os.path.join(args.watchdir, "fail",'*.fast5')):
         filenamecounter += 1
-        # print(filename)
         d.append([filename,seqids,threedarray,procampres,seqlen,args])
     procdata = tuple(d)
 
-    # print (procdata)
     # Assign process hdf5 to processes
-    print("Start processing hdf5..")
+    logger.info("Start spawning hdf5 processes")
     results = []
     for x in (procdata):
         r = p.apply_async(process_hdf5, args=(x,), callback=mycallback)
-        print(r.get())
+        # print(r.get())
         results.append(r)
     for r in results:
         r.wait()
-    print("Done.")
+    
+    logger.info("Read Until completed. Exiting..")
