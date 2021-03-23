@@ -50,23 +50,23 @@ def process_hdf5(arg):
         for event in events:
             event_collection.append(float(event[0]))
         
-        # We ignore the first 50 events and process the following 250 events
+        # We ignore the first 50 events (Protein driver) and process the following 250 events
         squiggle = event_collection[50:300]
 
         # Search squiggle in reference squiggle
         squiggleres = squiggle_search2(squiggle, 0, 0, args, seqids, threedarray, seqlen)
 
         if True:
-            logger.info("[%s, %s, %s]", squiggleres[0], squiggleres[2], squiggleres[3])
+            # logger.info("[%s, %s, %s]", squiggleres[0], squiggleres[2], squiggleres[3])
             try:
-                result = go_or_no(squiggleres[0], squiggleres[2], squiggleres[3], seqlen,args)
+                result = go_or_no(squiggleres[0], squiggleres[2], squiggleres[3], seqlen, args)
             except Exception as err:
                 logger.error("%s", err)
     hdf.close()
-    return (result,filename)
+    return (result, filename, squiggleres)
 
 def mycallback(arg):
-    (result, filename) = arg
+    (result, filename, squiggleres) = arg
     filetocheck = os.path.split(filename)
     sourcefile = filename
 
@@ -85,7 +85,7 @@ def mycallback(arg):
         if not os.path.exists(path4):
             os.makedirs(path4)
 
-        logger.info("\nFile: [%s]\nSequence found", filename)
+        logger.info("[%s-%s @%s] \033[42;1mSequence found\033[0m\n[%s]", squiggleres[0], squiggleres[2], squiggleres[3], filename)
         if "pass" in filename:
             destfile = os.path.join(path3,filetocheck[1])
         else:
@@ -109,7 +109,7 @@ def mycallback(arg):
         if not os.path.exists(path4):
             os.makedirs(path4)
 
-        logger.info("\nFile: [%s]\nNo match", filename)
+        logger.info("[%s-%s @%s] \033[41;1mNo match\033[0m\n[%s]", squiggleres[0], squiggleres[2], squiggleres[3], filename)
         if "pass" in filename:
             destfile = os.path.join(path3,filetocheck[1])
         else:
@@ -151,15 +151,15 @@ if __name__ == "__main__":
     # Argument parsing
     parser = configargparse.ArgParser(description='real_read_until: A program providing read until with the Oxford Nanopore minION device. This program will ultimately be driven by minoTour to enable selective remote sequencing. This program is heavily based on original code generously provided by Oxford Nanopore Technologies.')
     parser.add('-fasta', '--reference_fasta_file', type=str, dest='fasta', required=True, default=None, help="The fasta format file describing the reference sequence for your organism.")
-    parser.add('-targets', nargs = '*', dest='targets',required=True, help = 'Positional IDs to enrich for in the form seqid:start-stop . Can be space seperated eg: J02459:10000-15000 J02459:35000-40000')
+    parser.add('-targets', nargs = '*', dest='targets', required=True, help = 'Positional IDs to enrich for in the form seqid:start-stop . Can be space seperated eg: J02459:10000-15000 J02459:35000-40000')
     parser.add('-procs', '--proc_num', type=int, dest='procs',required=True, help = 'The number of processors to run this on.')
-    parser.add('-m', '--model',type=str, required=True, help = 'The appropriate template model file to use', dest='temp_model')
+    parser.add('-m', '--model', type=str, required=True, help = 'The appropriate template model file to use', dest='temp_model')
     parser.add('-log', '--log-file', type=str, dest='logfile', default='readuntil.log', help="The name of the log file that data will be written to regarding the decision made by this program to process read until.")
     parser.add('-w', '--watch-dir', type=str, required=True, default=None, help="The path to the folder containing the downloads directory with fast5 reads to analyse - e.g. C:\data\minion\downloads (for windows).", dest='watchdir')
     parser.add('-length', '--library-length', type=int, dest='length', required=False, default=0, help="Provide the average expected length of your library. This offset will be applied to reads that are likely to extend into your region of interest on either strand.")
     parser.add('-o', '--output', type=str, required=False, default='test_read_until_out', help="Path to a folder to symbolically place reads representing match and not match.", dest='output_folder')
     parser.add('-v', '--verbose-true', action='store_true', help="Print detailed messages while processing files.", default=False, dest='verbose')
-    parser.add_argument('-ver', '--version', action='version',version=('%(prog)s version={version} date={date}').format(version=__version__,date=__date__))
+    parser.add_argument('-ver', '--version', action='version', version=('%(prog)s version={version} date={date}').format(version=__version__,date=__date__))
     args = parser.parse_args()
 
     check_files((args.fasta, args.temp_model))
@@ -188,13 +188,13 @@ if __name__ == "__main__":
     filenamecounter = 0
     for filename in glob.glob(os.path.join(args.watchdir, '*.fast5')):
         filenamecounter += 1
-        d.append([filename,seqids,threedarray,procampres,seqlen,args])
+        d.append([filename, seqids, threedarray, procampres, seqlen, args])
     for filename in glob.glob(os.path.join(args.watchdir, "pass",'*.fast5')):
         filenamecounter += 1
-        d.append([filename,seqids,threedarray,procampres,seqlen,args])
+        d.append([filename, seqids, threedarray, procampres, seqlen, args])
     for filename in glob.glob(os.path.join(args.watchdir, "fail",'*.fast5')):
         filenamecounter += 1
-        d.append([filename,seqids,threedarray,procampres,seqlen,args])
+        d.append([filename, seqids, threedarray, procampres, seqlen, args])
     procdata = tuple(d)
 
     # Assign process hdf5 to processes

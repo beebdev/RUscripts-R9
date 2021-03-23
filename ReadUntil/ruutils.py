@@ -172,30 +172,38 @@ def genome_worker(channel_id, data,readstarttime,args,seqlen,seqids,threedarray)
             print (err_string, file=sys.stderr)
 
 #######################################################################
-def go_or_no(seqid,direction,position,seqlen,args):
+def go_or_no(seqid, direction, position, seqlen, args):
     for sequence in args.targets:
-        if args.verbose is True: print (sequence)
+        if args.verbose:
+            print(sequence)
+
         start = int(float(sequence.split(':', 1 )[1].split('-',1)[0]))
         stop = int(float(sequence.split(':', 1 )[1].split('-',1)[1]))
         length = seqlen[seqid]
-        if args.verbose is True:
-            print (start,stop,length)
+
+        if args.verbose:
+            print (start, stop, length)
             print (sequence.split(':', 1 )[0])
             print (type(seqid))
+
         #We note that the average template read length is 6kb for the test lambda dataset. Therefore we are interested in reads which start at least 3kb in advance of our position of interest
         balance = args.length/2
         if seqid.find(sequence.split(':', 1 )[0]) >= 0:
-            if args.verbose is True: print ("Found it")
+            if args.verbose:
+                print ("Found it")
+            
             if direction == "F":
-                if args.verbose is True: print ("Forward Strand")
+                if args.verbose:
+                    print ("Forward Strand")
+
                 if position >= ( start - balance ) and position <= stop:
                     return "Sequence"
             elif direction == "R":
-                if args.verbose is True: print ("Reverse Strand")
+                if args.verbose:
+                    print ("Reverse Strand")
                 ### We assume that coordinates are reported with respect to the forward strand regardless of
                 ### wether you are matching to forward or reverse.
                 if position >= ( start - balance ) and position <= stop:
-                #if position >= ( length - stop - balance) and position <= ( length - start ):
                     return "Sequence"
     return "Skip"
 
